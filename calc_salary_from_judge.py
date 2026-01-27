@@ -58,7 +58,8 @@ def main():
     col_wrong_per   = 14   # N列
 
     total_detail = defaultdict(lambda: [0.0, 0.0])   # 老师-ID -> [正确总金, 错误总金]
-    total_summary = defaultdict(lambda: [0.0, 0.0])  # 老师姓名 -> [正确总金, 错误总金]
+    # 老师姓名 -> [正确总金, 错误总金, 正确题数, 错误题数]
+    total_summary = defaultdict(lambda: [0.0, 0.0, 0, 0])
 
     print(f"开始处理 {ws.max_row - 1} 行数据...")
     
@@ -81,12 +82,14 @@ def main():
                 teacher_name = extract_teacher_name(t)
                 total_detail[t][0] += correct_per       # 详细记录
                 total_summary[teacher_name][0] += correct_per  # 汇总记录
+                total_summary[teacher_name][2] += 1     # 正确题数 +1
         else:
             # 没颜色 → 判断错误
             for t in passed_list:
                 teacher_name = extract_teacher_name(t)
                 total_detail[t][1] += wrong_per
                 total_summary[teacher_name][1] += wrong_per
+                total_summary[teacher_name][3] += 1     # 错误题数 +1
 
         # 处理 failed_users 格子（D列）
         cell_failed = ws.cell(row=row, column=col_failed)
@@ -97,12 +100,14 @@ def main():
                 teacher_name = extract_teacher_name(t)
                 total_detail[t][0] += correct_per
                 total_summary[teacher_name][0] += correct_per
+                total_summary[teacher_name][2] += 1     # 正确题数 +1
         else:
             # 没颜色 → 判断错误
             for t in failed_list:
                 teacher_name = extract_teacher_name(t)
                 total_detail[t][1] += wrong_per
                 total_summary[teacher_name][1] += wrong_per
+                total_summary[teacher_name][3] += 1     # 错误题数 +1
 
     wb.close()
 
@@ -124,10 +129,11 @@ def main():
     # 写入汇总文件
     summary_path = base / "salary_summary.csv"
     with open(summary_path, 'w', encoding='utf-8-sig', newline='') as f:
-        f.write("老师,回答正确所得金,回答错误所得金,所得金合计\n")
+        f.write("老师,回答正确所得金,回答错误所得金,所得金合计,评价正确题数,评价错误题数,评价总题数\n")
         for t in sorted(total_summary.keys()):
-            c, w = total_summary[t]
-            f.write(f"{t},{c:.2f},{w:.2f},{c+w:.2f}\n")
+            c, w, correct_count, wrong_count = total_summary[t]
+            total_count = correct_count + wrong_count
+            f.write(f"{t},{c:.2f},{w:.2f},{c+w:.2f},{correct_count},{wrong_count},{total_count}\n")
     
     print(f"汇总数据已写入: {summary_path}")
     print(f"\n详细记录: {len(total_detail)} 条")
