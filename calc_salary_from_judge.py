@@ -36,6 +36,12 @@ def parse_teachers(s):
         return []
     return [x.strip() for x in str(s).split() if x.strip()]
 
+def extract_teacher_name(teacher_id):
+    """从 '孙林-251' 提取出 '孙林'"""
+    if '-' in teacher_id:
+        return teacher_id.rsplit('-', 1)[0]  # 按最后一个 - 分割，取前面部分
+    return teacher_id
+
 def main():
     base = Path(__file__).resolve().parent
     xlsx_path = base / "judge.xlsx"
@@ -51,7 +57,8 @@ def main():
     col_correct_per = 11   # K列
     col_wrong_per   = 14   # N列
 
-    total = defaultdict(lambda: [0.0, 0.0])  # 老师 -> [正确总金, 错误总金]
+    total_detail = defaultdict(lambda: [0.0, 0.0])   # 老师-ID -> [正确总金, 错误总金]
+    total_summary = defaultdict(lambda: [0.0, 0.0])  # 老师姓名 -> [正确总金, 错误总金]
 
     print(f"开始处理 {ws.max_row - 1} 行数据...")
     
@@ -71,11 +78,15 @@ def main():
         if has_color(cell_passed):
             # 有颜色 → 判断正确
             for t in passed_list:
-                total[t][0] += correct_per
+                teacher_name = extract_teacher_name(t)
+                total_detail[t][0] += correct_per       # 详细记录
+                total_summary[teacher_name][0] += correct_per  # 汇总记录
         else:
             # 没颜色 → 判断错误
             for t in passed_list:
-                total[t][1] += wrong_per
+                teacher_name = extract_teacher_name(t)
+                total_detail[t][1] += wrong_per
+                total_summary[teacher_name][1] += wrong_per
 
         # 处理 failed_users 格子（D列）
         cell_failed = ws.cell(row=row, column=col_failed)
@@ -83,43 +94,44 @@ def main():
         if has_color(cell_failed):
             # 有颜色 → 判断正确
             for t in failed_list:
-                total[t][0] += correct_per
+                teacher_name = extract_teacher_name(t)
+                total_detail[t][0] += correct_per
+                total_summary[teacher_name][0] += correct_per
         else:
             # 没颜色 → 判断错误
             for t in failed_list:
-                total[t][1] += wrong_per
+                teacher_name = extract_teacher_name(t)
+                total_detail[t][1] += wrong_per
+                total_summary[teacher_name][1] += wrong_per
 
     wb.close()
 
     # 输出到终端
     print("\n" + "="*80)
-    print(f"处理完成！共 {len(total)} 位老师")
+    print(f"处理完成！详细记录 {len(total_detail)} 条，汇总 {len(total_summary)} 位老师")
     print("="*80)
     
-    # 输出前几行示例（避免编码问题）
-    print("\n前10位老师示例:")
-    count = 0
-    for t in sorted(total.keys()):
-        if count >= 10:
-            break
-        c, w = total[t]
-        try:
-            print(f"{t}\t\t{c:.2f}\t\t{w:.2f}\t\t{c+w:.2f}")
-            count += 1
-        except UnicodeEncodeError:
-            # 跳过无法编码的名字
-            continue
-    
-    # 写入 CSV
-    out_path = base / "salary_summary.csv"
-    with open(out_path, 'w', encoding='utf-8-sig', newline='') as f:
+    # 写入详细文件
+    detail_path = base / "salary_detail.csv"
+    with open(detail_path, 'w', encoding='utf-8-sig', newline='') as f:
         f.write("老师,回答正确所得金,回答错误所得金,所得金合计\n")
-        for t in sorted(total.keys()):
-            c, w = total[t]
+        for t in sorted(total_detail.keys()):
+            c, w = total_detail[t]
             f.write(f"{t},{c:.2f},{w:.2f},{c+w:.2f}\n")
     
-    print(f"\n结果已写入: {out_path}")
-    print(f"共处理 {len(total)} 位老师")
+    print(f"\n详细记录已写入: {detail_path}")
+    
+    # 写入汇总文件
+    summary_path = base / "salary_summary.csv"
+    with open(summary_path, 'w', encoding='utf-8-sig', newline='') as f:
+        f.write("老师,回答正确所得金,回答错误所得金,所得金合计\n")
+        for t in sorted(total_summary.keys()):
+            c, w = total_summary[t]
+            f.write(f"{t},{c:.2f},{w:.2f},{c+w:.2f}\n")
+    
+    print(f"汇总数据已写入: {summary_path}")
+    print(f"\n详细记录: {len(total_detail)} 条")
+    print(f"汇总老师: {len(total_summary)} 位")
 
 if __name__ == "__main__":
     main()
